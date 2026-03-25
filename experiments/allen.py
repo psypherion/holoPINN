@@ -86,7 +86,7 @@ class Config:
 # ──────────────────────────────────────────────────────────────
 # Data loading  (exact gen_testdata from user prompt)
 # ──────────────────────────────────────────────────────────────
-def gen_testdata(path="../dataset/Allen_Cahn.mat"):
+def gen_testdata(path="../datasets/Allen_Cahn.mat"):
     if not os.path.exists(path):
         # try local path fallback
         alt = "dataset/Allen_Cahn.mat"

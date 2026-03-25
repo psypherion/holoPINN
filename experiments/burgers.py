@@ -193,7 +193,7 @@ def lra_update(model, loss_data, loss_pde, lambda_p, alpha, lambda_max):
     """
     F1: cap at lambda_max.
     F2: only use parameters that actually require grad.
-        Fixed-Holonomy freezes log_w → filter it out.
+        Holonomy freezes log_w → filter it out.
     """
     trainable = [p for p in model.parameters() if p.requires_grad]
     if not trainable:
@@ -249,7 +249,7 @@ def w1_1_rel_error(u_pred, exact, x_vec, t_vec):
 # Data loading
 # ──────────────────────────────────────────────────────────────
 class DataLoader:
-    def __init__(self, path="dataset/Burgers.npz"):
+    def __init__(self, path="../datasets/Burgers.npz"):
         self.path = path
 
     def load(self):
@@ -303,7 +303,7 @@ def train_model(cfg, X_np, y_np, edge_index, device,
     use_sob      = (du_exact_grid is not None) and (dt_exact_grid is not None)
     lambda_p     = cfg.phys_weight_init
 
-    mode_str = ("fixed-holonomy" if freeze_w else
+    mode_str = ("holonomy" if freeze_w else
                 "ablation"       if ablate   else "diffusion")
     sob_str  = "+Sobolev" if use_sob else ""
     print(f"\n{'─'*64}")
@@ -759,22 +759,22 @@ def main():
                   "MLP-Only (Fourier)", "results/mlp_solution.png")
 
     # ══════════════════════════════════════════
-    # RUN 4 — Fixed-Holonomy null ablation
+    # RUN 4 — Holonomy null ablation
     #   F2: LRA skips frozen params — no crash
     # ══════════════════════════════════════════
     m4, h4, pred4, w4, mse4, rl2_4 = train_model(
         cfg, X_np, y_np, edge_index, device,
-        ablate=False, tag="Fixed-Holonomy", freeze_w=True
+        ablate=False, tag="Holonomy", freeze_w=True
     )
     w11_4 = w1_1_rel_error(pred4, exact, x_vec, t_vec)
     print(f"  ✦ W1,1 : {w11_4:.4f}")
-    results.append(("Fixed-Holonomy", mse4, rl2_4, w11_4))
+    results.append(("Holonomy", mse4, rl2_4, w11_4))
     histories.append(h4)
     plot_solution(t_vec, x_vec, exact, pred4, rl2_4,
-                  "Fixed-Holonomy", "results/fixed_holo_solution.png")
+                  "Holonomy", "results/fixed_holo_solution.png")
     plot_holonomy_spectrum(w4, "Fixed (frozen)", "results/holonomy_spectrum_fixed.png")
     plot_holonomy_spatial(m4, X_np, edge_index,
-                          "Fixed-Holonomy", "results/holonomy_spatial_fixed.png")
+                          "Holonomy", "results/holonomy_spatial_fixed.png")
 
     # ══════════════════════════════════════════
     # Combined plots
