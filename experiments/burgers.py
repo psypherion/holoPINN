@@ -294,9 +294,10 @@ def train_model(cfg, X_np, y_np, edge_index, device,
     y_dev = torch.from_numpy(y_np).to(device)
 
     model = holoInspiredGNN(cfg, ablate=ablate, sigma_override=cfg_sigma).to(device)
-    model.build_graph(edge_index, device)
-    if freeze_w:
-        model.freeze_holonomy()
+    if not ablate:
+        model.build_graph(edge_index, device)
+        if freeze_w:
+            model.freeze_holonomy()
 
     epochs_adam  = epochs_adam_override  or cfg.epochs_adam
     epochs_lbfgs = epochs_lbfgs_override or cfg.epochs_lbfgs
@@ -469,8 +470,8 @@ def plot_solution(t_vec, x_vec, exact, u_pred, rl2, tag, fname):
 
 def plot_shock_slices(t_vec, x_vec, exact, pred_list, label_list, rl2_list, fname):
     nt, nx  = exact.shape
-    colors  = ["r","g","b","purple","orange"]
-    styles  = ["--","-.",":",(0,(3,1,1,1)),(0,(5,1))]
+    colors  = ["r","g","b","purple","orange","brown"]
+    styles  = ["--","-.",":",(0,(3,1,1,1)),(0,(5,1)),"-"]
     fig, axes = plt.subplots(1, 4, figsize=(18,4), sharey=True)
     for ax, ti in zip(axes, [nt//2, 3*nt//4, 7*nt//8, nt-1]):
         ax.plot(x_vec, exact[ti], "k-", lw=2.5, label="Exact", zorder=10)
@@ -488,8 +489,8 @@ def plot_shock_slices(t_vec, x_vec, exact, pred_list, label_list, rl2_list, fnam
 
 
 def plot_training_curves(histories, labels, fname):
-    colors = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd"]
-    styles = ["-","-","-.","--",":"]
+    colors = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b"]
+    styles = ["-","-","-.","--",":","-."]
     fig, axes = plt.subplots(1, 3, figsize=(18, 4))
     for i,(h,lab) in enumerate(zip(histories,labels)):
         axes[0].semilogy(h["epoch"], h["data"],
@@ -611,7 +612,7 @@ def plot_metrics_bar(results, fname):
     rl2s   = [r[2] for r in results]
     mses   = [r[1] for r in results]
     w11s   = [r[3] for r in results]
-    colors = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd"][:len(results)]
+    colors = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b"][:len(results)]
     fig, axes = plt.subplots(1, 3, figsize=(17, 4))
     for ax, vals, ylabel, title in zip(
         axes,
@@ -745,7 +746,7 @@ def main():
                           "holo-Diff+Sob", "results/holonomy_spatial_sob.png")
 
     # ══════════════════════════════════════════
-    # RUN 3 — MLP-Only  (Fourier baseline)
+    # RUN 3 — MLP-Only  (Fourier baseline, no Sobolev)
     # ══════════════════════════════════════════
     m3, h3, pred3, _, mse3, rl2_3 = train_model(
         cfg, X_np, y_np, edge_index, device,
@@ -753,14 +754,13 @@ def main():
     )
     w11_3 = w1_1_rel_error(pred3, exact, x_vec, t_vec)
     print(f"  ✦ W1,1 : {w11_3:.4f}")
-    results.append(("MLP-Only (Fourier)", mse3, rl2_3, w11_3))
+    results.append(("MLP-Only", mse3, rl2_3, w11_3))
     histories.append(h3)
     plot_solution(t_vec, x_vec, exact, pred3, rl2_3,
-                  "MLP-Only (Fourier)", "results/mlp_solution.png")
+                  "MLP-Only", "results/mlp_only_solution.png")
 
     # ══════════════════════════════════════════
-    # RUN 4 — Holonomy null ablation
-    #   F2: LRA skips frozen params — no crash
+    # RUN 4 — Holonomy null ablation (frozen weights)
     # ══════════════════════════════════════════
     m4, h4, pred4, w4, mse4, rl2_4 = train_model(
         cfg, X_np, y_np, edge_index, device,
@@ -777,11 +777,27 @@ def main():
                           "Holonomy", "results/holonomy_spatial_fixed.png")
 
     # ══════════════════════════════════════════
-    # Combined plots
+    # RUN 5 — MLP+Sobolev  (new ablation)
     # ══════════════════════════════════════════
-    all_preds  = [pred1, pred2, pred3, pred4]
-    all_labels = ["holo-Diff","holo-Diff+Sob","MLP-Only","Fixed"]
-    all_rl2s   = [rl2_1, rl2_2, rl2_3, rl2_4]
+    m5, h5, pred5, _, mse5, rl2_5 = train_model(
+        cfg, X_np, y_np, edge_index, device,
+        ablate=True, tag="MLP+Sobolev",
+        Nt=Nt, Nx=Nx, dx_val=dx_val, dt_val=dt_val,
+        du_exact_grid=du_exact_grid, dt_exact_grid=dt_exact_grid
+    )
+    w11_5 = w1_1_rel_error(pred5, exact, x_vec, t_vec)
+    print(f"  ✦ W1,1 : {w11_5:.4f}")
+    results.append(("MLP+Sobolev", mse5, rl2_5, w11_5))
+    histories.append(h5)
+    plot_solution(t_vec, x_vec, exact, pred5, rl2_5,
+                  "MLP+Sobolev", "results/mlp_sob_solution.png")
+
+    # ══════════════════════════════════════════
+    # Combined plots (including new run)
+    # ══════════════════════════════════════════
+    all_preds  = [pred1, pred2, pred3, pred4, pred5]
+    all_labels = ["holo-Diff", "holo-Diff+Sob", "MLP-Only", "Holonomy", "MLP+Sobolev"]
+    all_rl2s   = [rl2_1, rl2_2, rl2_3, rl2_4, rl2_5]
 
     plot_training_curves(histories, all_labels, "results/training_curves.png")
     plot_shock_slices(t_vec, x_vec, exact, all_preds, all_labels, all_rl2s,
